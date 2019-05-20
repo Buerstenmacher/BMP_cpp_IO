@@ -4,16 +4,31 @@
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
+#include <vector>
 
-struct RGB {
-uint8_t blue,green,red;
-RGB(uint32_t rgb):blue{uint8_t((rgb & 0x0000FF) >> 0)},green{uint8_t((rgb & 0x00FF00) >> 8)},red{uint8_t((rgb & 0xFF0000) >> 16)} {}
-RGB(uint8_t r, uint8_t g, uint8_t b):blue{b},green{g},red{r} {}
-RGB(void):blue{255},green{255},red{255} {}
-bool operator==(const RGB& b) {return (blue == b.blue && green == b.green && red == b.red)?true:false;}
-};//struct RGB
+class RGB {
+uint8_t _bl,_gr,_re;
+public:
+RGB(uint32_t rgb):_bl{uint8_t((rgb & 0x0000FF) >> 0)},_gr{uint8_t((rgb & 0x00FF00) >> 8)},_re{uint8_t((rgb & 0xFF0000) >> 16)} {}
+RGB(uint8_t r, uint8_t g, uint8_t b):_bl{b},_gr{g},_re{r} {}
+RGB(void):_bl{255},_gr{255},_re{255} {}	//default is white
+bool operator==(const RGB& b) {return (_bl==b.blue() && _gr==b.green() && _re==b.red())?true:false;}
+const uint8_t& blue(void) const 	{return _bl;}
+const uint8_t& green(void) const 	{return _gr;}
+const uint8_t& red(void) const		{return _re;}
+uint8_t& blue(void) 	{return _bl;}
+uint8_t& green(void) 	{return _gr;}
+uint8_t& red(void) 	{return _re;}
+};//class RGB
 
-struct DIB_header {
+struct Point {
+uint32_t x,y;
+RGB color;
+Point(uint32_t x, uint32_t y, RGB rgb) : x(x), y(y), color(rgb) {}
+Point():x{0},y{0},color{} {}
+};//struct Point
+
+struct DIB_header {		// DIB header 40 byte in size
 uint32_t header_size = 40; 	// DIB_header's size is determined by its type. 0x0E/14, 32 bits.
 int32_t width{0}; 		// the bitmap width in pixels (signed integer). 0x12/18, 32 bits.
 int32_t height{0}; 		// the bitmap height in pixels (signed integer). 0x16/22, 32 bits.
@@ -28,20 +43,26 @@ uint32_t important_colors = 0; 	// the number of important colors used, or 0 whe
 DIB_header(void) {}
 };//struct DIB_header
 
-struct BMP_header {		// BMP header's size is fixed, which equals to 14 byte
-char head[3] = { 'B','M','\0' };
+class BMP_header {		// BMP header's size is fixed, which equals to 14 byte
+public:
+std::string head{"BM"};
 uint32_t file_size{0};
 uint32_t reserved_field = 0;
 uint32_t starting_addr = 54;
 uint32_t DIB_header_size = 40;
 DIB_header DIB;
-BMP_header(void):DIB{} {}
-operator bool() {return (strcmp(head,"BM")==0 || strcmp(head,"BA")==0 || strcmp(head,"CI")==0 || strcmp(head,"CP")==0 || strcmp(head,"IC")==0 || strcmp(head,"PT")==0)?true:false;}
-};//struct BMP_header
 
-BMP_header check_BMP_file(FILE* bmpfile) {
+operator bool() {return (head=="BM" || head=="BA" || head=="CI" || head=="CP" || head=="IC" || head=="PT")?true:false;}
+
+BMP_header(void):DIB{} {}
+
+BMP_header(FILE* bmpfile):DIB{} {
 BMP_header ret{};
-fread(ret.head, 1, 2, bmpfile);
+char tmp;
+fread(&tmp, 1, 1, bmpfile);
+ret.head.at(0) = tmp;
+fread(&tmp, 1, 1, bmpfile);
+ret.head.at(1) = tmp;
 fread(&ret.file_size, 4, 1, bmpfile);
 fread(&ret.reserved_field, 4, 1, bmpfile);
 fread(&ret.starting_addr, 4, 1, bmpfile);
@@ -60,29 +81,25 @@ if (ret.DIB_header_size == 40) {
 	fread(&ret.DIB.important_colors, 4, 1, bmpfile);
 	}
 rewind(bmpfile);
-return ret;
+(*this) = ret;
 }
 
-int32_t get_row_size(BMP_header h) 	{return ((h.DIB.bits_per_pixel*h.DIB.width + 31) / 32) * 4;}
-int32_t get_data_size(BMP_header h) 	{return get_row_size(h)*abs(h.DIB.height);}
+uint32_t get_row_size(void) 	{return ((DIB.bits_per_pixel * DIB.width + 31) / 32) * 4;}
+uint32_t get_data_size(void) 	{return get_row_size()*abs(DIB.height);}
 
-struct Point {
-int32_t x,y;
-RGB color;
-Point(int32_t x, int32_t y, RGB rgb) : x(x), y(y), color(rgb) {}
-Point():x{0},y{0},color{} {}
-};//struct Point
+};//class BMP_header
+
 
 class BMP{
 FILE* bmpfile;
 BMP_header header;
-int32_t row_size;
-const int32_t& width = header.DIB.width;
-const int32_t& height = header.DIB.height;
-RGB* data;
+uint32_t row_size(void) 	{return ((24 * width() + 31) / 32) * 4;}
+uint32_t width(void) 		{return header.DIB.width;}
+uint32_t height(void) 		{return header.DIB.height;}
+std::vector<RGB> data;
 
 void fill_(Point p, const RGB& origin) {
-if (p.x < width && p.y < height && data[p.y * width + p.x] == origin) {
+if (p.x < width() && p.y < height() && data[p.y * width() + p.x] == origin) {
 	this->put_pixel(p);
 	Point up, down, left, right;
 	up = down = left = right =p;
@@ -90,54 +107,51 @@ if (p.x < width && p.y < height && data[p.y * width + p.x] == origin) {
 	down.y++;
 	left.x--;
 	right.x++;
-	if (up.x < width && up.y < height && up.y >= 0 && up.x >= 0 && data[up.y * width + up.x] 		== origin)	{fill_(up, origin);}
-	if (down.x < width && down.y < height && down.y >= 0 && down.x >= 0 && data[down.y * width + down.x] 	== origin) 	{fill_(down, origin);}
-	if (left.x < width && left.y < height && left.y >= 0 && left.x >= 0 && data[left.y * width + left.x] 	== origin) 	{fill_(left, origin);}
-	if (right.x < width && right.y < height && right.y >= 0 && right.x >= 0 && data[right.y * width + right.x] == origin) 	{fill_(right, origin);}
+	if (up.x < width() && up.y < height() && up.y >= 0 && up.x >= 0 && data[up.y * width() + up.x] 			== origin)	{fill_(up, origin);}
+	if (down.x < width() && down.y < height() && down.y >= 0 && down.x >= 0 && data[down.y * width() + down.x] 	== origin) 	{fill_(down, origin);}
+	if (left.x < width() && left.y < height() && left.y >= 0 && left.x >= 0 && data[left.y * width() + left.x] 	== origin) 	{fill_(left, origin);}
+	if (right.x < width() && right.y < height() && right.y >= 0 && right.x >= 0 && data[right.y * width() + right.x]== origin) 	{fill_(right, origin);}
 	}
 }
 
 public:
-BMP(int w, int h, const char* path):bmpfile{fopen(path, "wb")},header{},row_size{((24 * w + 31) / 32) * 4},data{nullptr} {
+BMP(int32_t w, int32_t h, const char* path):bmpfile{fopen(path, "wb")},header{},data{} {
 header.DIB.width = w;
 header.DIB.height = h;
-header.DIB.raw_data_size = h * row_size;
+header.DIB.raw_data_size = h * row_size();
 header.file_size = 54 + header.DIB.raw_data_size;
-data = new RGB[h*w];
+data.resize(w*h);
 }
 
-BMP(const char* path):bmpfile{fopen(path, "rb")},header{check_BMP_file(bmpfile)},row_size{0},data{nullptr} {
+BMP(const char* path):bmpfile{fopen(path, "rb")},header{bmpfile},data{} {
 if (!header) {
 	fprintf(stderr, "This file is not a bmp file!");
 	exit(1);
 	}
-row_size = get_row_size(header);
-int start = header.starting_addr + row_size*(header.DIB.height - 1);
+int32_t start = header.starting_addr + row_size()*(header.DIB.height - 1);
 fseek(bmpfile, start, SEEK_SET);
-data = new RGB[height*width];
-for (int32_t i{0}; i < height; i++) {
-	for (int32_t j{0}; j < width; j++) {fread(&(data[i*width+j]), 3, 1, bmpfile);}
-	fseek(bmpfile, start - row_size*(i + 1), SEEK_SET);
+data.resize(width()*height());
+for (uint32_t i{0}; i < height(); i++) {
+	for (uint32_t j{0}; j < width(); j++) {fread(&(data[i*width()+j]), 3, 1, bmpfile);}
+	fseek(bmpfile, start - row_size()*(i + 1), SEEK_SET);
 	}
 }
 
-~BMP() {
-fclose(bmpfile);
-delete[] data;
-}
+~BMP() {fclose(bmpfile);}
 
 BMP(const BMP&) = delete;		//no copy
 BMP operator=(const BMP&)=delete;	//no copy
 
 void print() {
-for (int32_t i{0}; i < height; i++) {
-	for (int32_t j{0}; j < width; j++) {printf("\033[48;2;%d;%d;%dm  \033[0m", data[i*width + j].red, data[i*width + j].green, data[i*width + j].blue);}
-	printf("\n");
+for (uint32_t i{0}; i<height(); i++) {
+	for (uint32_t j{0}; j<width(); j++) {printf("\033[48;2;%d;%d;%dm  \033[0m", data[i*width() + j].red(), data[i*width() + j].green(), data[i*width() + j].blue());}
+	std::cout << std::endl;
 	}
 }
 
 void write() {	// header
-fwrite(header.head, 1, 2, bmpfile);
+fwrite(&header.head.at(0), 1, 1, bmpfile);
+fwrite(&header.head.at(1), 1, 1, bmpfile);
 fwrite(&header.file_size, 4, 1, bmpfile);
 fwrite(&header.reserved_field, 4, 1, bmpfile);
 fwrite(&header.starting_addr, 4, 1, bmpfile);
@@ -152,25 +166,25 @@ fwrite(&header.DIB.h_reso, 4, 1, bmpfile);
 fwrite(&header.DIB.v_reso, 4, 1, bmpfile);
 fwrite(&header.DIB.colors, 4, 1, bmpfile);
 fwrite(&header.DIB.important_colors, 4, 1, bmpfile);
-for (int i = height - 1; i >= 0; i--) {		// raw data!!
-	for (int j = 0; j < width; j++) {fwrite(&(data[i*width + j]), 3, 1, bmpfile);}
-	for (int k = 0; k < (row_size - width * 3); k++) {fputc('\0', bmpfile);}
+for (int64_t i = height() - 1; i >= 0; i--) {		// raw data!!
+	for (uint32_t j {0}; j < width(); j++) {fwrite(&(data[i*width() + j]), 3, 1, bmpfile);}
+	for (uint32_t k {0}; k < (row_size() - width() * 3); k++) {fputc('\0', bmpfile);}
 	}// eof
 }
 
-RGB* operator[](int sub){return &data[sub*width];}
+RGB* operator[](int32_t sub){return &data[sub*width()];}
 
-void put_pixel(Point p) {if (p.x < width && p.y < height && p.x >= 0 && p.y >= 0) {data[p.x + p.y*width] = p.color;}}
+void put_pixel(Point p) {if (p.x < width() && p.y < height() && p.x >= 0 && p.y >= 0) {data[p.x + p.y*width()] = p.color;}}
 
-void put_pixel(int x, int y, RGB color = RGB()) {if (x < width && y < height && x >= 0 && y >= 0) {data[x + y*width] = color;}}
+void put_pixel(uint32_t x, uint32_t y, RGB color = RGB()) {if (x < width() && y < height() && x >= 0 && y >= 0) {data[x + y*width()] = color;}}
 
 void line(Point p1, Point p2) {
 double dx = p2.x - p1.x;
 double dy = p2.y - p1.y;
-double dr = p2.color.red - p1.color.red;
-double dg = p2.color.green - p1.color.green;
-double db = p2.color.blue - p1.color.blue;
-int step = int((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
+double dr = p2.color.red() - p1.color.red();
+double dg = p2.color.green() - p1.color.green();
+double db = p2.color.blue() - p1.color.blue();
+int32_t step = int((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
 dx /= step;
 dy /= step;
 dr /= step;
@@ -178,11 +192,11 @@ dg /= step;
 db /= step;
 double x = p1.x;
 double y = p1.y;
-double r = p1.color.red;
-double g = p1.color.green;
-double b = p1.color.blue;
-for (int i = 0; i <= step; i++) {
-	this->put_pixel(x, y, RGB(r, g, b));
+double r = p1.color.red();
+double g = p1.color.green();
+double b = p1.color.blue();
+for (int32_t i = 0; i <= step; i++) {
+	put_pixel(x, y, RGB(r, g, b));
 	x = x + dx;
 	y = y + dy;
 	r += dr;
@@ -191,12 +205,12 @@ for (int i = 0; i <= step; i++) {
 	}
 }
 
-void circle(Point p, int radius) {
-int x = radius - 1;
-int y = 0;
-int dx = 1;
-int dy = 1;
-int err = dx - (radius << 1);
+void circle(Point p, int32_t radius) {
+int32_t x = radius - 1;
+int32_t y = 0;
+int32_t dx = 1;
+int32_t dy = 1;
+int32_t err = dx - (radius << 1);
 while (x >= y)	{
 	this->put_pixel(p.x + x, p.y + y, p.color);
 	this->put_pixel(p.x + y, p.y + x, p.color);
@@ -220,7 +234,7 @@ while (x >= y)	{
 }
 
 void fill(Point p) {
-if (p.x < width && p.y < height) {
+if (p.x < width() && p.y < height()) {
 	RGB origin = (*this)[p.y][p.x];
 	fill_(p, origin);
 	}

@@ -24,33 +24,34 @@ uint8_t& red(void) 	{return _re;}
 struct Point {
 uint32_t x,y;
 RGB color;
-Point(uint32_t x, uint32_t y, RGB rgb) : x(x), y(y), color(rgb) {}
+Point(uint32_t x, uint32_t y, RGB rgb=RGB{}) : x(x), y(y), color(rgb) {}
 Point():x{0},y{0},color{} {}
+uint8_t operator <(const Point& r ) const {return ((x < r.x && y < r.y && y >= 0 && x >= 0)?1:0);}
 };//struct Point
 
 struct DIB_header {		// DIB header 40 byte in size
-uint32_t header_size = 40; 	// DIB_header's size is determined by its type. 0x0E/14, 32 bits.
+uint32_t header_size{40}; 	// DIB_header's size is determined by its type. 0x0E/14, 32 bits.
 int32_t width{0}; 		// the bitmap width in pixels (signed integer). 0x12/18, 32 bits.
 int32_t height{0}; 		// the bitmap height in pixels (signed integer). 0x16/22, 32 bits.
-uint16_t color_planes = 1; 	// the number of color planes (must be 1). 0x1A/26, 16 bits.
-uint16_t bits_per_pixel = 24; 	// the number of bits per pixel, which is the color depth of the image. Typical values are 1, 4, 8, 16, 24 and 32. 0x1C/28, 16 bits.
-uint32_t compression_method = 0;// the compression method being used. 0x1E/30, 32 bits.
-uint32_t raw_data_size = 0; 	// the image size. This is the size of the raw bitmap data; a dummy 0 can be given for BI_RGB bitmaps. 0x22/34, 32 bits.
-int32_t h_reso = 5669; 		// the horizontal resolution of the image. (pixel per metre, signed integer) 0x26/38, 32 bits.
-int32_t v_reso = 5669; 		// the vertical resolution of the image. (pixel per metre, signed integer) 0x2A/42, 32 bits.
-uint32_t colors = 0; 		// the number of colors in the color palette, or 0 to default to 2^n. 0x2E/46, 32 bits.
-uint32_t important_colors = 0; 	// the number of important colors used, or 0 when every color is important; generally ignored. 0x32/50, 32 bits.
+uint16_t color_planes{1}; 	// the number of color planes (must be 1). 0x1A/26, 16 bits.
+uint16_t bits_per_pixel{24}; 	// the number of bits per pixel, which is the color depth of the image. Typical values are 1, 4, 8, 16, 24 and 32. 0x1C/28, 16 bits.
+uint32_t compression_method{0};	// the compression method being used. 0x1E/30, 32 bits.
+uint32_t raw_data_size{0}; 	// the image size. This is the size of the raw bitmap data; a dummy 0 can be given for BI_RGB bitmaps. 0x22/34, 32 bits.
+int32_t h_reso{5669}; 		// the horizontal resolution of the image. (pixel per metre, signed integer) 0x26/38, 32 bits.
+int32_t v_reso{5669}; 		// the vertical resolution of the image. (pixel per metre, signed integer) 0x2A/42, 32 bits.
+uint32_t colors{0}; 		// the number of colors in the color palette, or 0 to default to 2^n. 0x2E/46, 32 bits.
+uint32_t important_colors{0}; 	// the number of important colors used, or 0 when every color is important; generally ignored. 0x32/50, 32 bits.
 DIB_header(void) {}
 };//struct DIB_header
 
 class BMP_header {		// BMP header's size is fixed, which equals to 14 byte
 public:
-std::string head{"BM"};
-uint32_t file_size{0};
-uint32_t reserved_field = 0;
-uint32_t starting_addr = 54;
-uint32_t DIB_header_size = 40;
-DIB_header DIB;
+std::string head{"BM"};		// 2 char
+uint32_t file_size{0};		// 4 byte
+uint32_t reserved_field{0};	// 4 byte
+uint32_t starting_addr{54};	// 4 byte
+uint32_t DIB_header_size{40};	// 4 byte
+DIB_header DIB;			// + 40 Byte
 
 operator bool() {return (head=="BM" || head=="BA" || head=="CI" || head=="CP" || head=="IC" || head=="PT")?true:false;}
 
@@ -89,7 +90,6 @@ uint32_t get_data_size(void) 	{return get_row_size()*abs(DIB.height);}
 
 };//class BMP_header
 
-
 class BMP{
 FILE* bmpfile;
 BMP_header header;
@@ -99,7 +99,8 @@ uint32_t height(void) 		{return header.DIB.height;}
 std::vector<RGB> data;
 
 void fill_(Point p, const RGB& origin) {
-if (p.x < width() && p.y < height() && data[p.y * width() + p.x] == origin) {
+Point max{width(),height()};
+if (p < max	&& 	data.at(p.y * width() + p.x) == origin) {
 	this->put_pixel(p);
 	Point up, down, left, right;
 	up = down = left = right =p;
@@ -107,10 +108,10 @@ if (p.x < width() && p.y < height() && data[p.y * width() + p.x] == origin) {
 	down.y++;
 	left.x--;
 	right.x++;
-	if (up.x < width() && up.y < height() && up.y >= 0 && up.x >= 0 && data[up.y * width() + up.x] 			== origin)	{fill_(up, origin);}
-	if (down.x < width() && down.y < height() && down.y >= 0 && down.x >= 0 && data[down.y * width() + down.x] 	== origin) 	{fill_(down, origin);}
-	if (left.x < width() && left.y < height() && left.y >= 0 && left.x >= 0 && data[left.y * width() + left.x] 	== origin) 	{fill_(left, origin);}
-	if (right.x < width() && right.y < height() && right.y >= 0 && right.x >= 0 && data[right.y * width() + right.x]== origin) 	{fill_(right, origin);}
+	if (up < max	&& 	data.at(up.y * width() + up.x)		== origin)	{fill_(up, origin);}
+	if (down < max	&&	data.at(down.y * width() + down.x) 	== origin) 	{fill_(down, origin);}
+	if (left < max	&& 	data.at(left.y * width() + left.x) 	== origin) 	{fill_(left, origin);}
+	if (right < max &&	data.at(right.y * width() + right.x)	== origin) 	{fill_(right, origin);}
 	}
 }
 
@@ -132,7 +133,7 @@ int32_t start = header.starting_addr + row_size()*(header.DIB.height - 1);
 fseek(bmpfile, start, SEEK_SET);
 data.resize(width()*height());
 for (uint32_t i{0}; i < height(); i++) {
-	for (uint32_t j{0}; j < width(); j++) {fread(&(data[i*width()+j]), 3, 1, bmpfile);}
+	for (uint32_t j{0}; j < width(); j++) {fread(&(data.at(i*width()+j)), 3, 1, bmpfile);}
 	fseek(bmpfile, start - row_size()*(i + 1), SEEK_SET);
 	}
 }
@@ -144,7 +145,7 @@ BMP operator=(const BMP&)=delete;	//no copy
 
 void print() {
 for (uint32_t i{0}; i<height(); i++) {
-	for (uint32_t j{0}; j<width(); j++) {printf("\033[48;2;%d;%d;%dm  \033[0m", data[i*width() + j].red(), data[i*width() + j].green(), data[i*width() + j].blue());}
+	for (uint32_t j{0}; j<width(); j++) {printf("\033[48;2;%d;%d;%dm  \033[0m", data.at(i*width() + j).red(), data.at(i*width() + j).green(), data.at(i*width() + j).blue());}
 	std::cout << std::endl;
 	}
 }
@@ -167,16 +168,16 @@ fwrite(&header.DIB.v_reso, 4, 1, bmpfile);
 fwrite(&header.DIB.colors, 4, 1, bmpfile);
 fwrite(&header.DIB.important_colors, 4, 1, bmpfile);
 for (int64_t i = height() - 1; i >= 0; i--) {		// raw data!!
-	for (uint32_t j {0}; j < width(); j++) {fwrite(&(data[i*width() + j]), 3, 1, bmpfile);}
+	for (uint32_t j {0}; j < width(); j++) {fwrite(&(data.at(i*width() + j)), 3, 1, bmpfile);}
 	for (uint32_t k {0}; k < (row_size() - width() * 3); k++) {fputc('\0', bmpfile);}
 	}// eof
 }
 
-RGB* operator[](int32_t sub){return &data[sub*width()];}
+RGB* operator[](int32_t sub){return &data.at(sub*width());}
 
-void put_pixel(Point p) {if (p.x < width() && p.y < height() && p.x >= 0 && p.y >= 0) {data[p.x + p.y*width()] = p.color;}}
+void put_pixel(Point p) {if (p < Point{width(),height()}) {data.at(p.x + p.y*width()) = p.color;}}
 
-void put_pixel(uint32_t x, uint32_t y, RGB color = RGB()) {if (x < width() && y < height() && x >= 0 && y >= 0) {data[x + y*width()] = color;}}
+void put_pixel(uint32_t x, uint32_t y, RGB color = RGB{}) {if (Point{x,y} < Point{width(),height()}) {data.at(x + y*width()) = color;}}
 
 void line(Point p1, Point p2) {
 double dx = p2.x - p1.x;
@@ -184,7 +185,7 @@ double dy = p2.y - p1.y;
 double dr = p2.color.red() - p1.color.red();
 double dg = p2.color.green() - p1.color.green();
 double db = p2.color.blue() - p1.color.blue();
-int32_t step = int((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
+uint32_t step = uint32_t((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
 dx /= step;
 dy /= step;
 dr /= step;
@@ -195,10 +196,10 @@ double y = p1.y;
 double r = p1.color.red();
 double g = p1.color.green();
 double b = p1.color.blue();
-for (int32_t i = 0; i <= step; i++) {
+for (uint32_t i{0}; i <= step; i++) {
 	put_pixel(x, y, RGB(r, g, b));
-	x = x + dx;
-	y = y + dy;
+	x += dx;
+	y += dy;
 	r += dr;
 	g += dg;
 	b += db;

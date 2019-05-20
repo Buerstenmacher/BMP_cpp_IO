@@ -1,9 +1,8 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #include <string>
 #include <iostream>
 #include <iomanip>
 #include "bmp.h"
-using namespace std;
 
 
 int main() {
@@ -27,4 +26,5 @@ bmp.write();
 
 BMP bmp2("e.bmp");
 bmp2.print();
+bmp2.write();
 }

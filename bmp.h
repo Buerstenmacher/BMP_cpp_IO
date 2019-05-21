@@ -3,8 +3,21 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <iostream>
 #include <vector>
+#include <unistd.h>
+
+class terminalWindow {	//special for linux
+struct winsize w;
+void refresh(void) {ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);}
+public:
+terminalWindow(void):w{} {refresh();}
+void print(void) {std::cout << "This window has: "<< w.ws_row << " rows, and  " << w.ws_col << " columns. " <<std::endl;}
+uint32_t rows(void) {refresh(); return w.ws_row;}
+uint32_t columns(void) {refresh(); return w.ws_col;}
+void clrscr(void) 	{for(uint32_t i{0};i<=rows();++i)	{std::cout << std::endl;}}
+};//class terminalWindow
 
 class RGB {
 uint8_t _bl,_gr,_re;
@@ -121,15 +134,15 @@ int32_t& width(void)		{return DIB.width;}
 class BMP final{
 FILE* bmpfile;
 BMP_header header;
+std::vector<RGB> data;
 
 uint32_t row_size(void) const 	{return header.row_size();}
 uint32_t width(void) const	{return header.width();}
 uint32_t height(void) const	{return header.height();}
-std::vector<RGB> data;
 
 void fill_(Point p, const RGB& origin) {
 Point max{width(),height()};
-if (p<max	&& 	data.at(p.y() * width() + p.x()) == origin) {
+if (p<max	&& 	at(p.y(),p.x()) == origin) {
 	this->put_pixel(p);
 	Point up, down, left, right;
 	up = down = left = right =p;
@@ -137,14 +150,19 @@ if (p<max	&& 	data.at(p.y() * width() + p.x()) == origin) {
 	down.y()++;
 	left.x()--;
 	right.x()++;
-	if (up < max	&& 	data.at(up.y() * width() + up.x())	== origin)	{fill_(up, origin);}
-	if (down < max	&&	data.at(down.y() * width() + down.x()) 	== origin) 	{fill_(down, origin);}
-	if (left < max	&& 	data.at(left.y() * width() + left.x()) 	== origin) 	{fill_(left, origin);}
-	if (right < max &&	data.at(right.y() * width() + right.x())== origin) 	{fill_(right, origin);}
+	if (up < max	&& 	at(up.y(),up.x())	== origin)	{fill_(up, origin);}
+	if (down < max	&&	at(down.y(),down.x()) 	== origin) 	{fill_(down, origin);}
+	if (left < max	&& 	at(left.y(),left.x()) 	== origin) 	{fill_(left, origin);}
+	if (right < max &&	at(right.y(),right.x())	== origin) 	{fill_(right, origin);}
 	}
 }
 
 public:
+RGB& at(int32_t index)			{return this->data.at(index);}
+RGB& at(int32_t hei,int32_t wid)	{return this->data.at(hei*width()+wid);}
+const RGB& at(int32_t index) const			{return at(index);}
+const RGB& at(int32_t hei,int32_t wid) const		{return at(hei*width()+wid);}
+
 BMP(int32_t w, int32_t h, const char* path):bmpfile{fopen(path, "wb")},header{},data{} {
 header.width() = w;
 header.height() = h;
@@ -161,7 +179,7 @@ int32_t start = header.start_addr() + row_size()*(header.height() - 1);
 fseek(bmpfile, start, SEEK_SET);
 data.resize(width()*height());
 for (uint32_t i{0}; i < height(); i++) {
-	for (uint32_t j{0}; j < width(); j++) {fread(&(data.at(i*width()+j)), 3, 1, bmpfile);}
+	for (uint32_t j{0}; j < width(); j++) {fread(&(at(i,j)), 3, 1, bmpfile);}
 	fseek(bmpfile, start - row_size()*(i + 1), SEEK_SET);
 	}
 }
@@ -170,26 +188,40 @@ for (uint32_t i{0}; i < height(); i++) {
 BMP(const BMP&) = delete;		//no copy
 BMP operator=(const BMP&)=delete;	//no copy
 
-void print() {
+/*void print() {
 for (uint32_t i{0}; i<height(); i++) {
-	for (uint32_t j{0}; j<width(); j++) {printf("\033[48;2;%d;%d;%dm  \033[0m", data.at(i*width() + j).red(), data.at(i*width() + j).green(), data.at(i*width() + j).blue());}
+	for (uint32_t j{0}; j<width(); j++) {printf("\033[48;2;%d;%d;%dm  \033[0m",at(i,j).red(),at(i,j).green(),at(i,j).blue());}
+	std::cout << std::endl;
+	}
+}*/
+
+void print() {
+terminalWindow t{};
+uint32_t col = t.columns()/2;
+uint32_t row = t.rows()-1;
+t.clrscr();
+for (uint32_t r{0};r<row;r++) {
+	for (uint32_t c{0};c<col;++c) {
+		uint32_t colpos =	uint32_t(c*width()/col);
+		uint32_t rowpos =	uint32_t(r*height()/row);
+		printf("\033[48;2;%d;%d;%dm  \033[0m",at(rowpos,colpos).red(),at(rowpos,colpos).green(),at(rowpos,colpos).blue());
+		}
 	std::cout << std::endl;
 	}
 }
 
+
 void write() {
 header.write_header(bmpfile);
 for (int64_t i = height() - 1; i >= 0; i--) {		// raw data!!
-	for (uint32_t j {0}; j < width(); j++) {fwrite(&(data.at(i*width() + j)), 3, 1, bmpfile);}
+	for (uint32_t j {0}; j < width(); j++) {fwrite(&(at(i,j)), 3, 1, bmpfile);}
 	for (uint32_t k {0}; k < (row_size() - width() * 3); k++) {fputc('\0', bmpfile);}
 	}// eof
 }
 
-RGB* operator[](int32_t sub){return &data.at(sub*width());}
+void put_pixel(Point p) {if (p < Point{width(),height()}) {at(p.y(),p.x()) = p.color();}}
 
-void put_pixel(Point p) {if (p < Point{width(),height()}) {data.at(p.x() + p.y()*width()) = p.color();}}
-
-void put_pixel(uint32_t x, uint32_t y, RGB color = RGB{}) {if (Point{x,y} < Point{width(),height()}) {data.at(x + y*width()) = color;}}
+void put_pixel(uint32_t x, uint32_t y, RGB color = RGB{}) {if (Point{x,y} < Point{width(),height()}) {at(y,x) = color;}}
 
 void line(Point p1, Point p2) {
 double dx = p2.x() - p1.x();
@@ -197,7 +229,6 @@ double dy = p2.y() - p1.y();
 double dr = p2.color().red() - p1.color().red();
 double dg = p2.color().green() - p1.color().green();
 double db = p2.color().blue() - p1.color().blue();
-//uint32_t step = uint32_t((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
 uint32_t step = uint32_t(std::max(dx,dy));
 dx /= step;
 dy /= step;
@@ -249,7 +280,7 @@ while (x >= y)	{
 
 void fill(Point p) {
 if (p.x() < width() && p.y() < height()) {
-	RGB origin = (*this)[p.y()][p.x()];
+	RGB origin = at(p.y(),p.x());
 	fill_(p, origin);
 	}
 }

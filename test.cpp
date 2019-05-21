@@ -4,6 +4,10 @@
 #include <iomanip>
 #include "bmp.h"
 
+//compile and run with: 
+//g++ test.cpp -o test -std=c++11 -Wno-psabi -Weffc++ -Wall -pedantic -pthread -Os && ./test
+
+
 
 int main() {
 
@@ -27,4 +31,5 @@ bmp.write();
 BMP bmp2("e.bmp");
 bmp2.print();
 bmp2.write();
+
 }

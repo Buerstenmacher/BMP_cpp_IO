@@ -21,28 +21,17 @@ uint8_t& green(void) 	{return _gr;}
 uint8_t& red(void) 	{return _re;}
 };//class RGB
 
-struct Point {
-uint32_t x,y;
-RGB color;
-Point(uint32_t x, uint32_t y, RGB rgb=RGB{}) : x(x), y(y), color(rgb) {}
-Point():x{0},y{0},color{} {}
-uint8_t operator <(const Point& r ) const {return ((x < r.x && y < r.y && y >= 0 && x >= 0)?1:0);}
-};//struct Point
-
-struct DIB_header {		// DIB header 40 byte in size
-uint32_t header_size{40}; 	// DIB_header's size is determined by its type. 0x0E/14, 32 bits.
-int32_t width{0}; 		// the bitmap width in pixels (signed integer). 0x12/18, 32 bits.
-int32_t height{0}; 		// the bitmap height in pixels (signed integer). 0x16/22, 32 bits.
-uint16_t color_planes{1}; 	// the number of color planes (must be 1). 0x1A/26, 16 bits.
-uint16_t bits_per_pixel{24}; 	// the number of bits per pixel, which is the color depth of the image. Typical values are 1, 4, 8, 16, 24 and 32. 0x1C/28, 16 bits.
-uint32_t compression_method{0};	// the compression method being used. 0x1E/30, 32 bits.
-uint32_t raw_data_size{0}; 	// the image size. This is the size of the raw bitmap data; a dummy 0 can be given for BI_RGB bitmaps. 0x22/34, 32 bits.
-int32_t h_reso{5669}; 		// the horizontal resolution of the image. (pixel per metre, signed integer) 0x26/38, 32 bits.
-int32_t v_reso{5669}; 		// the vertical resolution of the image. (pixel per metre, signed integer) 0x2A/42, 32 bits.
-uint32_t colors{0}; 		// the number of colors in the color palette, or 0 to default to 2^n. 0x2E/46, 32 bits.
-uint32_t important_colors{0}; 	// the number of important colors used, or 0 when every color is important; generally ignored. 0x32/50, 32 bits.
-DIB_header(void) {}
-};//struct DIB_header
+class Point {
+uint32_t _x,_y;
+RGB _color;
+public:
+uint32_t& x(void) {return _x;}
+uint32_t& y(void) {return _y;}
+RGB& color(void) {return _color;}
+Point(uint32_t x, uint32_t y, RGB rgb=RGB{}) : _x(x), _y(y), _color(rgb) {}
+Point():_x{0},_y{0},_color{} {}
+uint8_t operator <(const Point& r ) const {return ((_x < r._x && _y < r._y && _y >= 0 && _x >= 0)?1:0);}
+};//class Point
 
 class BMP_header {		// BMP header's size is fixed, which equals to 14 byte
 public:
@@ -51,6 +40,20 @@ uint32_t file_size{0};		// 4 byte
 uint32_t reserved_field{0};	// 4 byte
 uint32_t starting_addr{54};	// 4 byte
 uint32_t DIB_header_size{40};	// 4 byte
+	struct DIB_header {		// DIB header 40 byte in size
+	uint32_t header_size{40}; 	// DIB_header's size is determined by its type. 0x0E/14, 32 bits.
+	int32_t width{0}; 		// the bitmap width in pixels (signed integer). 0x12/18, 32 bits.
+	int32_t height{0}; 		// the bitmap height in pixels (signed integer). 0x16/22, 32 bits.
+	uint16_t color_planes{1}; 	// the number of color planes (must be 1). 0x1A/26, 16 bits.
+	uint16_t bits_per_pixel{24}; 	// the number of bits per pixel, which is the color depth of the image. Typical values are 1, 4, 8, 16, 24 and 32. 0x1C/28, 16 bits.
+	uint32_t compression_method{0};	// the compression method being used. 0x1E/30, 32 bits.
+	uint32_t raw_data_size{0}; 	// the image size. This is the size of the raw bitmap data; a dummy 0 can be given for BI_RGB bitmaps. 0x22/34, 32 bits.
+	int32_t h_reso{5669}; 		// the horizontal resolution of the image. (pixel per metre, signed integer) 0x26/38, 32 bits.
+	int32_t v_reso{5669}; 		// the vertical resolution of the image. (pixel per metre, signed integer) 0x2A/42, 32 bits.
+	uint32_t colors{0}; 		// the number of colors in the color palette, or 0 to default to 2^n. 0x2E/46, 32 bits.
+	uint32_t important_colors{0}; 	// the number of important colors used, or 0 when every color is important; generally ignored. 0x32/50, 32 bits.
+	DIB_header(void) {}
+	};//struct DIB_header
 DIB_header DIB;			// + 40 Byte
 
 operator bool() {return (head=="BM" || head=="BA" || head=="CI" || head=="CP" || head=="IC" || head=="PT")?true:false;}
@@ -59,11 +62,8 @@ BMP_header(void):DIB{} {}
 
 BMP_header(FILE* bmpfile):DIB{} {
 BMP_header ret{};
-char tmp;
-fread(&tmp, 1, 1, bmpfile);
-ret.head.at(0) = tmp;
-fread(&tmp, 1, 1, bmpfile);
-ret.head.at(1) = tmp;
+fread(&ret.head.at(0), 1, 1, bmpfile);
+fread(&ret.head.at(1), 1, 1, bmpfile);
 fread(&ret.file_size, 4, 1, bmpfile);
 fread(&ret.reserved_field, 4, 1, bmpfile);
 fread(&ret.starting_addr, 4, 1, bmpfile);
@@ -100,18 +100,18 @@ std::vector<RGB> data;
 
 void fill_(Point p, const RGB& origin) {
 Point max{width(),height()};
-if (p < max	&& 	data.at(p.y * width() + p.x) == origin) {
+if (p < max	&& 	data.at(p.y() * width() + p.x()) == origin) {
 	this->put_pixel(p);
 	Point up, down, left, right;
 	up = down = left = right =p;
-	up.y--;
-	down.y++;
-	left.x--;
-	right.x++;
-	if (up < max	&& 	data.at(up.y * width() + up.x)		== origin)	{fill_(up, origin);}
-	if (down < max	&&	data.at(down.y * width() + down.x) 	== origin) 	{fill_(down, origin);}
-	if (left < max	&& 	data.at(left.y * width() + left.x) 	== origin) 	{fill_(left, origin);}
-	if (right < max &&	data.at(right.y * width() + right.x)	== origin) 	{fill_(right, origin);}
+	up.y()--;
+	down.y()++;
+	left.x()--;
+	right.x()++;
+	if (up < max	&& 	data.at(up.y() * width() + up.x())		== origin)	{fill_(up, origin);}
+	if (down < max	&&	data.at(down.y() * width() + down.x()) 	== origin) 	{fill_(down, origin);}
+	if (left < max	&& 	data.at(left.y() * width() + left.x()) 	== origin) 	{fill_(left, origin);}
+	if (right < max &&	data.at(right.y() * width() + right.x())	== origin) 	{fill_(right, origin);}
 	}
 }
 
@@ -175,27 +175,27 @@ for (int64_t i = height() - 1; i >= 0; i--) {		// raw data!!
 
 RGB* operator[](int32_t sub){return &data.at(sub*width());}
 
-void put_pixel(Point p) {if (p < Point{width(),height()}) {data.at(p.x + p.y*width()) = p.color;}}
+void put_pixel(Point p) {if (p < Point{width(),height()}) {data.at(p.x() + p.y()*width()) = p.color();}}
 
 void put_pixel(uint32_t x, uint32_t y, RGB color = RGB{}) {if (Point{x,y} < Point{width(),height()}) {data.at(x + y*width()) = color;}}
 
 void line(Point p1, Point p2) {
-double dx = p2.x - p1.x;
-double dy = p2.y - p1.y;
-double dr = p2.color.red() - p1.color.red();
-double dg = p2.color.green() - p1.color.green();
-double db = p2.color.blue() - p1.color.blue();
+double dx = p2.x() - p1.x();
+double dy = p2.y() - p1.y();
+double dr = p2.color().red() - p1.color().red();
+double dg = p2.color().green() - p1.color().green();
+double db = p2.color().blue() - p1.color().blue();
 uint32_t step = uint32_t((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
 dx /= step;
 dy /= step;
 dr /= step;
 dg /= step;
 db /= step;
-double x = p1.x;
-double y = p1.y;
-double r = p1.color.red();
-double g = p1.color.green();
-double b = p1.color.blue();
+double x = p1.x();
+double y = p1.y();
+double r = p1.color().red();
+double g = p1.color().green();
+double b = p1.color().blue();
 for (uint32_t i{0}; i <= step; i++) {
 	put_pixel(x, y, RGB(r, g, b));
 	x += dx;
@@ -213,14 +213,14 @@ int32_t dx = 1;
 int32_t dy = 1;
 int32_t err = dx - (radius << 1);
 while (x >= y)	{
-	this->put_pixel(p.x + x, p.y + y, p.color);
-	this->put_pixel(p.x + y, p.y + x, p.color);
-	this->put_pixel(p.x - y, p.y + x, p.color);
-	this->put_pixel(p.x - x, p.y + y, p.color);
-	this->put_pixel(p.x - x, p.y - y, p.color);
-	this->put_pixel(p.x - y, p.y - x, p.color);
-	this->put_pixel(p.x + y, p.y - x, p.color);
-	this->put_pixel(p.x + x, p.y - y, p.color);
+	this->put_pixel(p.x() + x, p.y() + y, p.color());
+	this->put_pixel(p.x() + y, p.y() + x, p.color());
+	this->put_pixel(p.x() - y, p.y() + x, p.color());
+	this->put_pixel(p.x() - x, p.y() + y, p.color());
+	this->put_pixel(p.x() - x, p.y() - y, p.color());
+	this->put_pixel(p.x() - y, p.y() - x, p.color());
+	this->put_pixel(p.x() + y, p.y() - x, p.color());
+	this->put_pixel(p.x() + x, p.y() - y, p.color());
 	if (err <= 0) {
 		y++;
 		err += dy;
@@ -235,8 +235,8 @@ while (x >= y)	{
 }
 
 void fill(Point p) {
-if (p.x < width() && p.y < height()) {
-	RGB origin = (*this)[p.y][p.x];
+if (p.x() < width() && p.y() < height()) {
+	RGB origin = (*this)[p.y()][p.x()];
 	fill_(p, origin);
 	}
 }

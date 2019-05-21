@@ -11,6 +11,10 @@
 
 int main() {
 
+BMP bmp0("sample.bmp");
+bmp0.print();
+
+
 printf("Generating sample.bmp. . .\n");
 BMP bmp(77, 77, "sample.bmp");
 bmp.line(Point(8, 8, 0), Point(52, 8, 0));

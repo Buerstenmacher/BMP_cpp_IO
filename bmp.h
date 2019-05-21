@@ -12,7 +12,7 @@ public:
 RGB(uint32_t rgb):_bl{uint8_t((rgb & 0x0000FF) >> 0)},_gr{uint8_t((rgb & 0x00FF00) >> 8)},_re{uint8_t((rgb & 0xFF0000) >> 16)} {}
 RGB(uint8_t r, uint8_t g, uint8_t b):_bl{b},_gr{g},_re{r} {}
 RGB(void):_bl{255},_gr{255},_re{255} {}	//default is white
-bool operator==(const RGB& b) {return (_bl==b.blue() && _gr==b.green() && _re==b.red())?true:false;}
+bool operator==(const RGB& b) const {return (_bl==b.blue() && _gr==b.green() && _re==b.red())?true:false;}
 const uint8_t& blue(void) const 	{return _bl;}
 const uint8_t& green(void) const 	{return _gr;}
 const uint8_t& red(void) const		{return _re;}
@@ -25,16 +25,15 @@ class Point {
 uint32_t _x,_y;
 RGB _color;
 public:
-uint32_t& x(void) {return _x;}
-uint32_t& y(void) {return _y;}
-RGB& color(void) {return _color;}
+uint32_t& x(void)	{return _x;}
+uint32_t& y(void)	{return _y;}
+RGB& color(void)	{return _color;}
 Point(uint32_t x, uint32_t y, RGB rgb=RGB{}) : _x(x), _y(y), _color(rgb) {}
 Point():_x{0},_y{0},_color{} {}
-uint8_t operator <(const Point& r ) const {return ((_x < r._x && _y < r._y && _y >= 0 && _x >= 0)?1:0);}
+uint8_t operator <(const Point& r ) const {return ((_x<r._x && _y<r._y && _y>=0 && _x>=0)?1:0);}
 };//class Point
 
 class BMP_header {		// BMP header's size is fixed, which equals to 14 byte
-public:
 std::string head{"BM"};		// 2 char
 uint32_t file_size{0};		// 4 byte
 uint32_t reserved_field{0};	// 4 byte
@@ -56,51 +55,81 @@ uint32_t DIB_header_size{40};	// 4 byte
 	};//struct DIB_header
 DIB_header DIB;			// + 40 Byte
 
-operator bool() {return (head=="BM" || head=="BA" || head=="CI" || head=="CP" || head=="IC" || head=="PT")?true:false;}
-
-BMP_header(void):DIB{} {}
-
-BMP_header(FILE* bmpfile):DIB{} {
-BMP_header ret{};
-fread(&ret.head.at(0), 1, 1, bmpfile);
-fread(&ret.head.at(1), 1, 1, bmpfile);
-fread(&ret.file_size, 4, 1, bmpfile);
-fread(&ret.reserved_field, 4, 1, bmpfile);
-fread(&ret.starting_addr, 4, 1, bmpfile);
-fread(&ret.DIB_header_size, 4, 1, bmpfile);
-if (ret.DIB_header_size == 40) {
-	ret.DIB.header_size = ret.DIB_header_size;
-	fread(&ret.DIB.width, 4, 1, bmpfile);
-	fread(&ret.DIB.height, 4, 1, bmpfile);
-	fread(&ret.DIB.color_planes, 2, 1, bmpfile);
-	fread(&ret.DIB.bits_per_pixel, 2, 1, bmpfile);
-	fread(&ret.DIB.compression_method, 4, 1, bmpfile);
-	fread(&ret.DIB.raw_data_size, 4, 1, bmpfile);
-	fread(&ret.DIB.h_reso, 4, 1, bmpfile);
-	fread(&ret.DIB.v_reso, 4, 1, bmpfile);
-	fread(&ret.DIB.colors, 4, 1, bmpfile);
-	fread(&ret.DIB.important_colors, 4, 1, bmpfile);
-	}
-rewind(bmpfile);
-(*this) = ret;
+public:
+void correct_size(void) {
+DIB.raw_data_size = height() * row_size();
+file_size = 54 + DIB.raw_data_size;
 }
 
-uint32_t get_row_size(void) 	{return ((DIB.bits_per_pixel * DIB.width + 31) / 32) * 4;}
-uint32_t get_data_size(void) 	{return get_row_size()*abs(DIB.height);}
+operator bool() {return (head=="BM" || head=="BA" || head=="CI" || head=="CP" || head=="IC" || head=="PT")?true:false;}
 
+void write_header(FILE* bmpfile) {
+fwrite(&head.at(0), 1, 1, bmpfile);
+fwrite(&head.at(1), 1, 1, bmpfile);
+fwrite(&file_size, 4, 1, bmpfile);
+fwrite(&reserved_field, 4, 1, bmpfile);
+fwrite(&starting_addr, 4, 1, bmpfile);
+fwrite(&DIB_header_size, 4, 1, bmpfile);
+fwrite(&DIB.width, 4, 1, bmpfile);
+fwrite(&DIB.height, 4, 1, bmpfile);
+fwrite(&DIB.color_planes, 2, 1, bmpfile);
+fwrite(&DIB.bits_per_pixel, 2, 1, bmpfile);
+fwrite(&DIB.compression_method, 4, 1, bmpfile);
+fwrite(&DIB.raw_data_size, 4, 1, bmpfile);
+fwrite(&DIB.h_reso, 4, 1, bmpfile);
+fwrite(&DIB.v_reso, 4, 1, bmpfile);
+fwrite(&DIB.colors, 4, 1, bmpfile);
+fwrite(&DIB.important_colors, 4, 1, bmpfile);
+}
+
+void read_header(FILE* bmpfile) {
+fread(&head.at(0), 1, 1, bmpfile);
+fread(&head.at(1), 1, 1, bmpfile);
+fread(&file_size, 4, 1, bmpfile);
+fread(&reserved_field, 4, 1, bmpfile);
+fread(&starting_addr, 4, 1, bmpfile);
+fread(&DIB_header_size, 4, 1, bmpfile);
+if (DIB_header_size == 40) {
+	DIB.header_size = DIB_header_size;
+	fread(&DIB.width, 4, 1, bmpfile);
+	fread(&DIB.height, 4, 1, bmpfile);
+	fread(&DIB.color_planes, 2, 1, bmpfile);
+	fread(&DIB.bits_per_pixel, 2, 1, bmpfile);
+	fread(&DIB.compression_method, 4, 1, bmpfile);
+	fread(&DIB.raw_data_size, 4, 1, bmpfile);
+	fread(&DIB.h_reso, 4, 1, bmpfile);
+	fread(&DIB.v_reso, 4, 1, bmpfile);
+	fread(&DIB.colors, 4, 1, bmpfile);
+	fread(&DIB.important_colors, 4, 1, bmpfile);
+	}
+rewind(bmpfile);
+}
+
+BMP_header(FILE* bmpfile):DIB{} {read_header(bmpfile);}
+BMP_header(void):DIB{} {}
+
+uint32_t get_row_size(void) const 	{return ((DIB.bits_per_pixel*DIB.width + 31) / 32) * 4;}//every row has to have a multiple of 4 bytes
+uint32_t get_data_size(void) const 	{return get_row_size()*abs(DIB.height);}
+int32_t height(void) const		{return DIB.height;}
+int32_t width(void) const		{return DIB.width;}
+uint32_t start_addr(void) const	{return starting_addr;}
+uint32_t row_size(void) const 	{return ((24 * width() + 31) / 32) * 4;}
+int32_t& height(void)		{return DIB.height;}
+int32_t& width(void)		{return DIB.width;}
 };//class BMP_header
 
-class BMP{
+class BMP final{
 FILE* bmpfile;
 BMP_header header;
-uint32_t row_size(void) 	{return ((24 * width() + 31) / 32) * 4;}
-uint32_t width(void) 		{return header.DIB.width;}
-uint32_t height(void) 		{return header.DIB.height;}
+
+uint32_t row_size(void) const 	{return header.row_size();}
+uint32_t width(void) const	{return header.width();}
+uint32_t height(void) const	{return header.height();}
 std::vector<RGB> data;
 
 void fill_(Point p, const RGB& origin) {
 Point max{width(),height()};
-if (p < max	&& 	data.at(p.y() * width() + p.x()) == origin) {
+if (p<max	&& 	data.at(p.y() * width() + p.x()) == origin) {
 	this->put_pixel(p);
 	Point up, down, left, right;
 	up = down = left = right =p;
@@ -108,19 +137,18 @@ if (p < max	&& 	data.at(p.y() * width() + p.x()) == origin) {
 	down.y()++;
 	left.x()--;
 	right.x()++;
-	if (up < max	&& 	data.at(up.y() * width() + up.x())		== origin)	{fill_(up, origin);}
+	if (up < max	&& 	data.at(up.y() * width() + up.x())	== origin)	{fill_(up, origin);}
 	if (down < max	&&	data.at(down.y() * width() + down.x()) 	== origin) 	{fill_(down, origin);}
 	if (left < max	&& 	data.at(left.y() * width() + left.x()) 	== origin) 	{fill_(left, origin);}
-	if (right < max &&	data.at(right.y() * width() + right.x())	== origin) 	{fill_(right, origin);}
+	if (right < max &&	data.at(right.y() * width() + right.x())== origin) 	{fill_(right, origin);}
 	}
 }
 
 public:
 BMP(int32_t w, int32_t h, const char* path):bmpfile{fopen(path, "wb")},header{},data{} {
-header.DIB.width = w;
-header.DIB.height = h;
-header.DIB.raw_data_size = h * row_size();
-header.file_size = 54 + header.DIB.raw_data_size;
+header.width() = w;
+header.height() = h;
+header.correct_size();
 data.resize(w*h);
 }
 
@@ -129,7 +157,7 @@ if (!header) {
 	fprintf(stderr, "This file is not a bmp file!");
 	exit(1);
 	}
-int32_t start = header.starting_addr + row_size()*(header.DIB.height - 1);
+int32_t start = header.start_addr() + row_size()*(header.height() - 1);
 fseek(bmpfile, start, SEEK_SET);
 data.resize(width()*height());
 for (uint32_t i{0}; i < height(); i++) {
@@ -138,8 +166,7 @@ for (uint32_t i{0}; i < height(); i++) {
 	}
 }
 
-~BMP() {fclose(bmpfile);}
-
+~BMP() {fclose(bmpfile);}		//close file on destruction
 BMP(const BMP&) = delete;		//no copy
 BMP operator=(const BMP&)=delete;	//no copy
 
@@ -150,23 +177,8 @@ for (uint32_t i{0}; i<height(); i++) {
 	}
 }
 
-void write() {	// header
-fwrite(&header.head.at(0), 1, 1, bmpfile);
-fwrite(&header.head.at(1), 1, 1, bmpfile);
-fwrite(&header.file_size, 4, 1, bmpfile);
-fwrite(&header.reserved_field, 4, 1, bmpfile);
-fwrite(&header.starting_addr, 4, 1, bmpfile);
-fwrite(&header.DIB_header_size, 4, 1, bmpfile);
-fwrite(&header.DIB.width, 4, 1, bmpfile);
-fwrite(&header.DIB.height, 4, 1, bmpfile);
-fwrite(&header.DIB.color_planes, 2, 1, bmpfile);
-fwrite(&header.DIB.bits_per_pixel, 2, 1, bmpfile);
-fwrite(&header.DIB.compression_method, 4, 1, bmpfile);
-fwrite(&header.DIB.raw_data_size, 4, 1, bmpfile);
-fwrite(&header.DIB.h_reso, 4, 1, bmpfile);
-fwrite(&header.DIB.v_reso, 4, 1, bmpfile);
-fwrite(&header.DIB.colors, 4, 1, bmpfile);
-fwrite(&header.DIB.important_colors, 4, 1, bmpfile);
+void write() {
+header.write_header(bmpfile);
 for (int64_t i = height() - 1; i >= 0; i--) {		// raw data!!
 	for (uint32_t j {0}; j < width(); j++) {fwrite(&(data.at(i*width() + j)), 3, 1, bmpfile);}
 	for (uint32_t k {0}; k < (row_size() - width() * 3); k++) {fputc('\0', bmpfile);}
@@ -185,7 +197,8 @@ double dy = p2.y() - p1.y();
 double dr = p2.color().red() - p1.color().red();
 double dg = p2.color().green() - p1.color().green();
 double db = p2.color().blue() - p1.color().blue();
-uint32_t step = uint32_t((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
+//uint32_t step = uint32_t((abs(dx) >= abs(dy)) ? abs(dx) : abs(dy));
+uint32_t step = uint32_t(std::max(dx,dy));
 dx /= step;
 dy /= step;
 dr /= step;

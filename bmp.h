@@ -24,7 +24,7 @@ uint8_t _bl,_gr,_re;
 public:
 RGB(uint32_t rgb):_bl{uint8_t((rgb & 0x0000FF) >> 0)},_gr{uint8_t((rgb & 0x00FF00) >> 8)},_re{uint8_t((rgb & 0xFF0000) >> 16)} {}
 RGB(uint8_t r, uint8_t g, uint8_t b):_bl{b},_gr{g},_re{r} {}
-RGB(void):_bl{255},_gr{255},_re{255} {}	//default is white
+RGB(void):_bl{100},_gr{100},_re{100} {}	//default is gray
 bool operator==(const RGB& b) const {return (_bl==b.blue() && _gr==b.green() && _re==b.red())?true:false;}
 const uint8_t& blue(void) const 	{return _bl;}
 const uint8_t& green(void) const 	{return _gr;}
@@ -69,7 +69,7 @@ uint32_t DIB_header_size{40};	// 4 byte
 DIB_header DIB;			// + 40 Byte
 
 public:
-void correct_size(void) {
+void update_header(void) {
 DIB.raw_data_size = height() * row_size();
 file_size = 54 + DIB.raw_data_size;
 }
@@ -122,11 +122,11 @@ BMP_header(FILE* bmpfile):DIB{} {read_header(bmpfile);}
 BMP_header(void):DIB{} {}
 
 uint32_t get_row_size(void) const 	{return ((DIB.bits_per_pixel*DIB.width + 31) / 32) * 4;}//every row has to have a multiple of 4 bytes
+uint32_t row_size(void) 	const 	{return get_row_size();}
 uint32_t get_data_size(void) const 	{return get_row_size()*abs(DIB.height);}
 int32_t height(void) const		{return DIB.height;}
 int32_t width(void) const		{return DIB.width;}
 uint32_t start_addr(void) const	{return starting_addr;}
-uint32_t row_size(void) const 	{return ((24 * width() + 31) / 32) * 4;}
 int32_t& height(void)		{return DIB.height;}
 int32_t& width(void)		{return DIB.width;}
 };//class BMP_header
@@ -135,10 +135,6 @@ class BMP final{
 FILE* bmpfile;
 BMP_header header;
 std::vector<RGB> data;
-
-uint32_t row_size(void) const 	{return header.row_size();}
-uint32_t width(void) const	{return header.width();}
-uint32_t height(void) const	{return header.height();}
 
 void fill_(Point p, const RGB& origin) {
 Point max{width(),height()};
@@ -158,6 +154,9 @@ if (p<max	&& 	at(p.y(),p.x()) == origin) {
 }
 
 public:
+uint32_t row_size(void) const 	{return header.row_size();}
+uint32_t width(void) const	{return uint32_t(header.width());}
+uint32_t height(void) const	{return uint32_t(header.height());}
 RGB& at(int32_t index)			{return this->data.at(index);}
 RGB& at(int32_t hei,int32_t wid)	{return this->data.at(hei*width()+wid);}
 const RGB& at(int32_t index) const			{return at(index);}
@@ -166,7 +165,7 @@ const RGB& at(int32_t hei,int32_t wid) const		{return at(hei*width()+wid);}
 BMP(int32_t w, int32_t h, const char* path):bmpfile{fopen(path, "wb")},header{},data{} {
 header.width() = w;
 header.height() = h;
-header.correct_size();
+header.update_header();
 data.resize(w*h);
 }
 
@@ -183,33 +182,25 @@ for (uint32_t i{0}; i < height(); i++) {
 	fseek(bmpfile, start - row_size()*(i + 1), SEEK_SET);
 	}
 }
-
+BMP(const std::string& s1):BMP(s1.c_str()) {}	//delegating from std::string to c_string
 ~BMP() {fclose(bmpfile);}		//close file on destruction
 BMP(const BMP&) = delete;		//no copy
 BMP operator=(const BMP&)=delete;	//no copy
 
-/*void print() {
-for (uint32_t i{0}; i<height(); i++) {
-	for (uint32_t j{0}; j<width(); j++) {printf("\033[48;2;%d;%d;%dm  \033[0m",at(i,j).red(),at(i,j).green(),at(i,j).blue());}
-	std::cout << std::endl;
-	}
-}*/
-
 void print() {
 terminalWindow t{};
-uint32_t col = t.columns()/2;
+uint32_t col = t.columns()-1;
 uint32_t row = t.rows()-1;
 t.clrscr();
 for (uint32_t r{0};r<row;r++) {
-	for (uint32_t c{0};c<col;++c) {
-		uint32_t colpos =	uint32_t(c*width()/col);
-		uint32_t rowpos =	uint32_t(r*height()/row);
-		printf("\033[48;2;%d;%d;%dm  \033[0m",at(rowpos,colpos).red(),at(rowpos,colpos).green(),at(rowpos,colpos).blue());
+	for (uint32_t c{0};c<col;++c) {	//loop  (from 0.0 to 1.0)*(last index)
+		uint32_t colpos =	uint32_t((c/float(col-1))*(width()-1));
+		uint32_t rowpos =	uint32_t((r/float(row-1))*(height() -1));
+		printf("\033[48;2;%d;%d;%dm \033[0m",at(rowpos,colpos).red(),at(rowpos,colpos).green(),at(rowpos,colpos).blue());
 		}
 	std::cout << std::endl;
 	}
 }
-
 
 void write() {
 header.write_header(bmpfile);
@@ -286,5 +277,35 @@ if (p.x() < width() && p.y() < height()) {
 }
 
 };//class BMP
+
+void demo(void) { //draw demo-bmp file on terminal and safe it as "sample.bmp"
+BMP bmp(70, 70, "sample.bmp");
+bmp.print();
+bmp.line(Point(8, 8, 0), Point(52, 8, 0));
+bmp.print();
+bmp.line(Point(8, 8, 0), Point(8, 52, 0));
+bmp.print();
+bmp.line(Point(8, 52, 0), Point(52, 52, 0));
+bmp.print();
+bmp.line(Point(52, 8, 0), Point(52, 52, 0));
+bmp.print();
+bmp.line(Point(23, 23, 0), Point(23, 67, 0));
+bmp.print();
+bmp.line(Point(23, 23, 0), Point(67, 23, 0));
+bmp.print();
+bmp.line(Point(23, 67, 0), Point(67, 67, 0));
+bmp.print();
+bmp.line(Point(67, 23, 0), Point(67, 67, 0));
+bmp.print();
+bmp.fill(Point(18, 18, 0xFF0000));
+bmp.print();
+bmp.fill(Point(40, 40, 0x00FF00));
+bmp.print();
+bmp.fill(Point(60, 60, RGB(0, 0, 255)));
+bmp.print();
+bmp.circle(Point(23, 52, 0x000000), 10);
+bmp.print();
+bmp.write();
+}
 
 #endif // !BMP_H

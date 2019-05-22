@@ -4,50 +4,37 @@
 #include <iomanip>
 #include "bmp.h"
 
-//compile and run with:
-//g++ test.cpp -o test -std=c++11 -Wno-psabi -Weffc++ -Wall -pedantic -pthread -Os && ./test
+//you shuld be on an linx computer with a terminal that has truecolor capabilities
+//ubuntu mate with mate terminal is recommendet
+//compile with:
+//	g++ test.cpp -o test -std=c++11 -Wno-psabi -Weffc++ -Wall -pedantic -pthread -Os
+//set your terminal to a very small font size and maximize the window
+//run with:
+//	./test cat.bmp
+//if it works you will see an image of an cat on a couch
 
 
-
-int main() {
-
-BMP bmp0("sample.bmp");
-bmp0.print();
-
-
-printf("Generating sample.bmp. . .\n");
-BMP bmp(80, 80, "sample.bmp");
-bmp.print();
-bmp.line(Point(8, 8, 0), Point(52, 8, 0));
-bmp.print();
-bmp.line(Point(8, 8, 0), Point(8, 52, 0));
-bmp.print();
-bmp.line(Point(8, 52, 0), Point(52, 52, 0));
-bmp.print();
-bmp.line(Point(52, 8, 0), Point(52, 52, 0));
-bmp.print();
-bmp.line(Point(23, 23, 0), Point(23, 67, 0));
-bmp.print();
-bmp.line(Point(23, 23, 0), Point(67, 23, 0));
-bmp.print();
-bmp.line(Point(23, 67, 0), Point(67, 67, 0));
-bmp.print();
-bmp.line(Point(67, 23, 0), Point(67, 67, 0));
-bmp.print();
-bmp.fill(Point(18, 18, 0xFF0000));
-bmp.print();
-bmp.fill(Point(40, 40, 0xFFF200));
-bmp.print();
-bmp.fill(Point(60, 60, RGB(181, 230, 29)));
-bmp.print();
-bmp.circle(Point(23, 52, 0x000000), 10);
-bmp.print();
-bmp.write();
-
-BMP bmp2("e.bmp");
-bmp2.print();
-bmp2.write();
-
-BMP bmp3("cat.bmp");
-bmp3.print();
+std::vector<std::string> commandl_args(int argc, char* argv[]) {//helps to deal with comand line parameters
+std::vector<std::string> ret{};
+for (int32_t i{0};i<argc;i++) {ret.push_back(std::string(argv[i]));}
+return ret;
 }
+
+int main (int argc, char* argv[]) {
+auto commands{commandl_args(argc,argv)};
+std::string key (".bmp");
+while (commands.size()<2) {commands.push_back("error");}
+std::string com{commands.at(1)};
+std::size_t found = com.find(key);
+if (com == "demo") {
+	demo();
+	}
+else if (found!=std::string::npos) {
+	BMP bmp2(com);
+	bmp2.print();
+	}
+else{
+	std::cout << "Yo should run this program with one parameter containing the name of a bmp-file or \"demo\"!";
+	std::cout << std::endl;
+	}
+}//main

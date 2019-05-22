@@ -189,8 +189,8 @@ BMP operator=(const BMP&)=delete;	//no copy
 
 void print() {
 terminalWindow t{};
-uint32_t col = t.columns()-1;
-uint32_t row = t.rows()-1;
+uint32_t col = t.columns();
+uint32_t row = t.rows()-1;//one line for terminal
 t.clrscr();
 for (uint32_t r{0};r<row;r++) {
 	for (uint32_t c{0};c<col;++c) {	//loop  (from 0.0 to 1.0)*(last index)
@@ -279,7 +279,7 @@ if (p.x() < width() && p.y() < height()) {
 };//class BMP
 
 void demo(void) { //draw demo-bmp file on terminal and safe it as "sample.bmp"
-BMP bmp(70, 70, "sample.bmp");
+BMP bmp(77, 77, "sample.bmp");
 bmp.print();
 bmp.line(Point(8, 8, 0), Point(52, 8, 0));
 bmp.print();

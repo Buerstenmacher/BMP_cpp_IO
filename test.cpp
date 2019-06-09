@@ -29,7 +29,7 @@ if (com == "demo") {
 	demo();
 	}
 else if (com == "window") {
-	window();
+//	window();
 	}
 else if (found!=std::string::npos) {
 	BMP bmp2(com);

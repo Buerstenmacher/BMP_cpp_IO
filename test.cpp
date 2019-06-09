@@ -13,7 +13,6 @@
 //	./test cat.bmp
 //if it works you will see an image of an cat on a couch
 
-
 std::vector<std::string> commandl_args(int argc, char* argv[]) {//helps to deal with comand line parameters
 std::vector<std::string> ret{};
 for (int32_t i{0};i<argc;i++) {ret.push_back(std::string(argv[i]));}
@@ -28,6 +27,9 @@ std::string com{commands.at(1)};
 std::size_t found = com.find(key);
 if (com == "demo") {
 	demo();
+	}
+else if (com == "window") {
+	window();
 	}
 else if (found!=std::string::npos) {
 	BMP bmp2(com);

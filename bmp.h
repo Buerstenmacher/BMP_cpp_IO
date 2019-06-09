@@ -2,11 +2,101 @@
 #define BMP_H
 
 #include <stdio.h>
-#include <string.h>
-#include <iostream>
-#include <vector>
-#include <ncurses.h>
+#include <string.h>	//stl
+#include <iostream>	//stl
+#include <vector>	//stl
+#include <ncurses.h> 	//sudo apt-get install libncurses5-dev libncursesw5-dev
+			//compile with -lncurses flag!
+			//ncurses will work on linux only
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+class ncurses_window {
+private:
+
+class _WIN_struct {	//nested class
+public:
+int32_t height, width, startx, starty;
+
+class _win_border_struct {	//nested nested class
+public:
+char ls, rs, ts, bs, tl, tr, bl, br;
+
+_win_border_struct(void):ls{'|'},rs{'|'},ts{'-'},bs{'-'},tl{'+'},tr{'+'},bl{'+'},br{'+'} {}
+}  border;
+
+_WIN_struct(void):height{10},width{10},startx {0},starty{0},border{} {}
+} window;
+
+void print_win_params() {
+#ifdef _DEBUG
+mvprintw(25, 0, "%d %d %d %d", window.startx, window.starty,window.width, window.height);
+refresh();
+#endif
+}
+
+void create_box(bool flag) {
+int i, j;
+int x, y, w, h;
+x = window.startx;
+y = window.starty;
+w = window.width;
+h = window.height;
+if(flag == TRUE) {
+	mvaddch(y, x, window.border.tl);
+	mvaddch(y, x + w, window.border.tr);
+	mvaddch(y + h, x, window.border.bl);
+	mvaddch(y + h, x + w, window.border.br);
+	mvhline(y, x + 1, window.border.ts, w - 1);
+	mvhline(y + h, x + 1, window.border.bs, w - 1);
+	mvvline(y + 1, x, window.border.ls, h - 1);
+	mvvline(y + 1, x + w, window.border.rs, h - 1);
+	}
+else	{
+	for(j = y; j <= y + h; ++j) {
+		for(i = x; i <= x + w; ++i) {mvaddch(j, i, ' ');}
+		}
+	}
+refresh();
+}
+
+public:
+uint32_t terminalheight(void) 	{return LINES;}
+uint32_t terminalwidth(void)	{return COLS;}
+uint32_t row(void) 	{return LINES;}
+uint32_t col(void)	{return COLS;}
+
+
+ncurses_window(std::string name = "Press ESC to exit"):window{} {
+initscr();			// Start curses mode
+cbreak();			// Line buffering disabled, Pass on everty thing to me
+keypad(stdscr, TRUE);    	// I need that nifty F1
+noecho();
+print_win_params();
+printw(name.c_str());
+refresh();
+window.startx=0;
+window.starty=1;
+window.width = terminalwidth() - 1;  	//reserve one column for borders
+window.height = terminalheight() -3;	//
+create_box(TRUE);
+//char ch;
+//while((ch = getch()) != 27) {}  //until ESC is pressed
+}
+
+~ncurses_window() {
+create_box(FALSE);
+endwin();
+}
+
+};	//class ncurses_window
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 class RGB {
 uint8_t _bl,_gr,_re;
 public:
@@ -21,7 +111,9 @@ uint8_t& blue(void) 	{return _bl;}
 uint8_t& green(void) 	{return _gr;}
 uint8_t& red(void) 	{return _re;}
 };//class RGB
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 class Point {
 int32_t _x,_y;
 //RGB _color;
@@ -33,7 +125,9 @@ Point(int32_t x, int32_t y/*, RGB rgb=RGB{}*/) : _x(x), _y(y)/*, _color(rgb)*/ {
 Point():_x{0},_y{0}/*,_color{}*/ {}
 uint8_t operator <(const Point& r ) const {return ((_x<r._x && _y<r._y && _y>=0 && _x>=0)?1:0);}
 };//class Point
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 class BMP_header {		// BMP header's size is fixed, which equals to 14 byte
 std::string head{"BM"};		// 2 char
 uint32_t file_size{0};		// 4 byte
@@ -118,8 +212,13 @@ uint32_t start_addr(void) const	{return starting_addr;}
 int32_t& height(void)		{return DIB.height;}
 int32_t& width(void)		{return DIB.width;}
 };//class BMP_header
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 class BMP final{
+std::string filename;
 FILE* bmpfile;
 BMP_header header;
 std::vector<RGB> data;
@@ -141,6 +240,21 @@ if (p<max	&& 	at(p.y(),p.x()) == ori_col) {
 	}
 }
 
+uint32_t get_terminal_columns(void) {
+ncurses_window w1{};
+return w1.col();
+}
+
+uint32_t get_terminal_rows(void) {
+ncurses_window w1{};
+return w1.row();
+}
+
+void horizontal_line(void) {
+auto columns{get_terminal_columns()};
+for (uint32_t i{0};i<columns;i++) {std::cout << '-';}
+}
+
 public:
 int32_t row_size(void) const 	{return header.row_size();}
 int32_t width(void) const	{return int32_t(header.width());}
@@ -150,14 +264,16 @@ RGB& at(int32_t hei,int32_t wid)	{return this->data.at(hei*width()+wid);}
 const RGB& at(int32_t index) const			{return at(index);}
 const RGB& at(int32_t hei,int32_t wid) const		{return at(hei*width()+wid);}
 
-BMP(int32_t w, int32_t h, const char* path):bmpfile{fopen(path, "wb")},header{},data{} {
+//create an empty .BMP file with this constructor
+BMP(int32_t w, int32_t h, const char* path):filename{path},bmpfile{fopen(path, "wb")},header{},data{} {
 header.width() = w;
 header.height() = h;
 header.update_header();
 data.resize(w*h);
 }
 
-BMP(const char* path):bmpfile{fopen(path, "rb")},header{bmpfile},data{} {
+//open an existing .BMP file with this constructor
+BMP(const char* path):filename{path},bmpfile{fopen(path, "rb")},header{bmpfile},data{} {
 if (!header) {
 	fprintf(stderr, "This file is not a bmp file!");
 	exit(1);
@@ -179,20 +295,27 @@ BMP(const std::string& s1):BMP(s1.c_str()) {}	//delegating from std::string to c
 BMP(const BMP&) = delete;		//no copy
 BMP operator=(const BMP&)=delete;	//no copy
 
-void print() {
-uint32_t col = 77;//t.columns();
-uint32_t row = 77;//t.rows()-1;//one line for terminal
+void print() {	//print .BMP File on Terminal :-o
+auto row{get_terminal_rows()-4};
+auto col{get_terminal_columns()-2};
+std::cout << filename << "\t" << width() << " * "<< height()<< std::endl;;
+horizontal_line();
 for (uint32_t r{0};r<row;r++) {
+	std::cout << '|';
 	for (uint32_t c{0};c<col;++c) {	//loop  (from 0.0 to 1.0)*(last index)
 		uint32_t colpos =	uint32_t((c/float(col-1))*(width()-1));
 		uint32_t rowpos =	uint32_t((r/float(row-1))*(height() -1));
+		//this is the magic printf command from Howard Zorn;
+		//it will print one color Char (pixel) to the terminal (if your terminal can handle truecolor)	
 		printf("\033[48;2;%d;%d;%dm \033[0m",at(rowpos,colpos).red(),at(rowpos,colpos).green(),at(rowpos,colpos).blue());
 		}
-	std::cout << std::endl;
+	std::cout << '|';
+	std::cout << std::endl;	//next line(row)
 	}
+horizontal_line();
 }
 
-void safe() {
+void save() {	//save.BMP file
 header.write_header(bmpfile);
 for (int64_t i = height() - 1; i >= 0; i--) {		// raw data!!
 	for (int32_t j {0}; j < width(); j++) {fwrite(&(at(i,j)), 3, 1, bmpfile);}
@@ -255,8 +378,14 @@ if (p.x() < width() && p.y() < height()) {
 }
 
 };//class BMP
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void demo(void) { //draw demo-bmp file on terminal and safe it as "sample.bmp"
+
+
+
+void demo(void) { //draw demo-bmp file on terminal and save it as "sample.bmp"
 BMP bmp(77, 77, "sample.bmp");
 bmp.print();
 bmp.line(Point(8, 8), Point(52, 8),RGB{0});
@@ -283,7 +412,7 @@ bmp.fill(Point(60, 60), RGB{0, 0, 255});
 bmp.print();
 bmp.circle(Point(23, 52),10, RGB{0x000000});
 bmp.print();
-bmp.safe();
+bmp.save();
 }
 
 #endif // !BMP_H
